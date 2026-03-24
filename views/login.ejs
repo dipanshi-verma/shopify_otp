@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sign in with OTP</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f6f6f7;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 420px;
+    }
+    .logo {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .logo h1 {
+      font-size: 22px;
+      font-weight: 600;
+      color: #1a1a1a;
+    }
+    .logo p {
+      font-size: 14px;
+      color: #6b7280;
+      margin-top: 6px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+    .phone-input-wrap {
+      display: flex;
+      border: 1.5px solid #d1d5db;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: border-color 0.2s;
+    }
+    .phone-input-wrap:focus-within {
+      border-color: #5c6ac4;
+      box-shadow: 0 0 0 3px rgba(92,106,196,0.15);
+    }
+    .country-code {
+      background: #f9fafb;
+      border-right: 1.5px solid #d1d5db;
+      padding: 12px 14px;
+      font-size: 15px;
+      color: #374151;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    input[type="tel"] {
+      border: none;
+      outline: none;
+      padding: 12px 14px;
+      font-size: 15px;
+      width: 100%;
+      color: #1a1a1a;
+      background: transparent;
+    }
+    .error {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      color: #dc2626;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    button[type="submit"] {
+      width: 100%;
+      background: #5c6ac4;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 18px;
+      transition: background 0.2s;
+    }
+    button[type="submit"]:hover { background: #4959b8; }
+    button[type="submit"]:active { background: #3d4da6; }
+    .note {
+      text-align: center;
+      font-size: 12px;
+      color: #9ca3af;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <h1>Sign in to your account</h1>
+      <p>We'll send a one-time password to your mobile</p>
+    </div>
+
+    <% if (error) { %>
+      <div class="error"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/interaction/<%= uid %>/send-otp">
+      <label for="phone">Mobile number</label>
+      <div class="phone-input-wrap">
+        <span class="country-code">🇮🇳 +91</span>
+        <input
+          type="tel"
+          id="phone"
+          name="phone"
+          placeholder="98765 43210"
+          maxlength="10"
+          pattern="[6-9][0-9]{9}"
+          required
+          autofocus
+        />
+      </div>
+      <button type="submit">Send OTP →</button>
+    </form>
+
+    <p class="note">Standard SMS rates may apply</p>
+  </div>
+</body>
+</html>
