@@ -136,3 +136,4 @@ shopify-otp-idp/
     ├── public.pem
     └── jwks.json
 ```
+# shopify_otp
