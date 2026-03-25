@@ -7,6 +7,7 @@ const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
+app.enable('trust proxy');
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set('view engine', 'ejs');
@@ -31,21 +32,29 @@ const ISSUER = `https://${process.env.NGROK_HOST}`;
 const SHOP_ID = process.env.SHOP_ID;
 const SHOP_DOMAIN = process.env.SHOP_DOMAIN;
 
+// Trust proxy for HTTPS
+app.set('trust proxy', true);
+
 const oidcConfig = {
-  clients: [
-    {
-      client_id: process.env.CLIENT_ID,
-      client_secret: process.env.CLIENT_SECRET,
-      token_endpoint_auth_method: 'client_secret_post',
-      grant_types: ['authorization_code'],
-      response_types: ['code'],
-      redirect_uris: [
-        `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
-        `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
-      ],
-      scope: 'openid email',
-    },
-  ],
+  issuer: ISSUER,
+  scopes: ['openid', 'email', 'customer-account-api:full'],
+
+ clients: [
+  {
+    client_id: process.env.CLIENT_ID,
+    client_secret: process.env.CLIENT_SECRET,
+    token_endpoint_auth_method: 'client_secret_post',
+    grant_types: ['authorization_code'],
+    response_types: ['code'],
+    redirect_uris: [
+      `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
+      `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
+      `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
+      `https://${SHOP_DOMAIN}.account.myshopify.com/authentication/login/external/callback`,
+    ],
+    scope: 'openid email customer-account-api:full', 
+  },
+],
   jwks: loadJWKS(),
   pkce: { required: () => false },
   features: {
@@ -80,6 +89,7 @@ const oidcConfig = {
 };
 
 const oidc = new Provider(ISSUER, oidcConfig);
+oidc.proxy = true;
 
 // ─── Interaction Routes ───────────────────────────────────────────────────────
 
