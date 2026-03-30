@@ -386,6 +386,22 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
     next(err);
   }
 });
+
+// Health check
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+// Keep-alive ping every 14 minutes (prevents Render free tier sleep)
+setInterval(async () => {
+  try {
+    await fetch(`https://${process.env.NGROK_HOST}/health`);
+    console.log('🏓 Keep-alive ping sent');
+  } catch (err) {
+    console.error('Keep-alive failed:', err.message);
+  }
+}, 14 * 60 * 1000);
+
 // ─── Mount OIDC provider ──────────────────────────────────────────────────────
 // Must come AFTER interaction routes so our routes take priority,
 // and oidc-provider never sees pre-parsed bodies.
