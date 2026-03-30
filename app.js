@@ -167,6 +167,7 @@ const oidcConfig = {
         ctx.body = `<html><body>${form}</body></html>`;
       },
     },
+    refreshTokenRotation: { enabled: false },
   },
 
   ttl: {
