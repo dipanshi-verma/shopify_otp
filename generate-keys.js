@@ -1,4 +1,4 @@
-const { generateKeyPairSync } = require('crypto');
+const { generateKeyPairSync, createPrivateKey } = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,32 +13,14 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', {
   privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
 });
 
-// Build a minimal JWK set for oidc-provider
-const { createPublicKey } = require('crypto');
-const pubKeyObj = createPublicKey(publicKey);
-const jwk = pubKeyObj.export({ format: 'jwk' });
-
-const jwks = {
-  keys: [
-    {
-      ...jwk,
-      kty: 'RSA',
-      use: 'sig',
-      alg: 'RS256',
-      kid: 'shopify-otp-idp-key-1',
-      // Include private key components for signing
-      d: Buffer.from(privateKey).toString('base64'),
-    },
-  ],
-};
-
-// Better: use jose library approach — store PEM files and let oidc-provider load them
+// Save PEM files
 fs.writeFileSync(path.join(keysDir, 'private.pem'), privateKey);
 fs.writeFileSync(path.join(keysDir, 'public.pem'), publicKey);
 
-// Build proper JWKS using the full key
-const privateKeyObj = require('crypto').createPrivateKey(privateKey);
+// Build proper JWKS with all private key components for oidc-provider signing
+const privateKeyObj = createPrivateKey(privateKey);
 const privateJwk = privateKeyObj.export({ format: 'jwk' });
+
 const fullJwks = {
   keys: [{ ...privateJwk, use: 'sig', alg: 'RS256', kid: 'key-1' }],
 };
@@ -49,3 +31,17 @@ console.log('✅ Keys generated successfully in .keys/');
 console.log('   - private.pem');
 console.log('   - public.pem');
 console.log('   - jwks.json');
+
+// Verify the keys are correct
+const loaded = JSON.parse(fs.readFileSync(path.join(keysDir, 'jwks.json'), 'utf8'));
+const keyFields = Object.keys(loaded.keys[0]);
+console.log('\n🔍 Key fields present:', keyFields.join(', '));
+
+const required = ['kty', 'n', 'e', 'd', 'p', 'q', 'dp', 'dq', 'qi'];
+const missing = required.filter(f => !keyFields.includes(f));
+if (missing.length > 0) {
+  console.error('❌ Missing required key fields:', missing.join(', '));
+  process.exit(1);
+} else {
+  console.log('✅ All required RSA key components present!');
+}

@@ -107,20 +107,29 @@
       <p>Sent to <strong>+91 <%= phone %></strong></p>
     </div>
 
+    <% if (demoOtp) { %>
+      <div style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;text-align:center;">
+        Demo mode &mdash; OTP is: <strong><%= demoOtp %></strong>
+      </div>
+    <% } %>
+
     <% if (error) { %>
       <div class="error"><%= error %></div>
     <% } %>
 
     <form method="POST" action="/interaction/<%= uid %>/verify-otp">
       <input type="hidden" name="phone" value="<%= phone %>"/>
+      <input type="hidden" name="reqId" value="<%= reqId || '' %>"/>
       <label for="otp">One-time password</label>
       <input
-        type="number"
+        type="text"
+        inputmode="numeric"
+        pattern="\d{4,6}"
         id="otp"
         name="otp"
         class="otp-input"
         placeholder="••••••"
-        value="<%= phone === '9193521876' ? '123456' : '' %>"
+        value="<%= demoOtp || '' %>"
         maxlength="6"
         required
         autofocus

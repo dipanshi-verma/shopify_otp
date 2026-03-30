@@ -1,23 +1,18 @@
 {
   "name": "shopify-otp-idp",
   "version": "1.0.0",
-  "description": "OTP-based OpenID Connect Identity Provider for Shopify",
+  "description": "Custom OIDC Identity Provider for Shopify with MSG91 OTP",
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js",
+    "dev": "node app.js",
     "generate-keys": "node generate-keys.js"
   },
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "dependencies": {
-    "dotenv": "^16.3.1",
+    "dotenv": "^16.0.0",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
+    "lowdb": "^7.0.1",
     "oidc-provider": "^8.4.6"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
   }
 }
