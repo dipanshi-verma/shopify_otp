@@ -150,7 +150,7 @@ const oidcConfig = {
         `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
         `https://${SHOP_DOMAIN}.account.myshopify.com/authentication/login/external/callback`,
       ],
-      scope: 'openid email customer-account-api:full',
+      scope: 'openid email offline_access customer-account-api:full',
     },
   ],
 
