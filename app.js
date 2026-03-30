@@ -171,7 +171,7 @@ const oidcConfig = {
   },
 
   ttl: {
-    AuthorizationCode: 600,
+    AuthorizationCode: 300,
     AccessToken: 3600,
     IdToken: 3600,
     RefreshToken: 1209600,
