@@ -7,9 +7,15 @@ const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
-app.set('trust proxy', true);
+app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+
+app.use((req, res, next) => {
+  req.headers['x-forwarded-proto'] = 'https';
+  next();
+});
 
 // ─── NO global body parser ────────────────────────────────────────────────────
 // express.json() and express.urlencoded() must NOT be registered globally
@@ -186,12 +192,16 @@ const oidcConfig = {
     secure: true,
     httpOnly: true,
     path: '/',
-  },
+    overwrite: true,  
+    signed: true,  
+  },  
   long: {
     sameSite: 'None',  
     secure: true,
     httpOnly: true,
     path: '/',
+    overwrite: true,  
+    signed: true,     
   },
 },
 
