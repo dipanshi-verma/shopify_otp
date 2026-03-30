@@ -167,7 +167,6 @@ const oidcConfig = {
         ctx.body = `<html><body>${form}</body></html>`;
       },
     },
-    refreshTokenRotation: { enabled: false },
   },
 
   ttl: {
@@ -421,6 +420,12 @@ oidc.on('grant.error', (ctx, err) => {
 
 oidc.on('server_error', (ctx, err) => {
   console.error('❌ server_error:', err.message, err.stack);
+});
+
+
+app.post('/token', (req, res, next) => {
+  console.log('🔍 /token request body:', JSON.stringify(req.body));
+  next();
 });
 
 // ─── Mount OIDC provider ──────────────────────────────────────────────────────
