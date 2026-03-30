@@ -146,6 +146,7 @@ const oidcConfig = {
       redirect_uris: [
         `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
         `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
+        `https://shopify.com/${SHOP_ID}/account/callback`,
         `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
         `https://${SHOP_DOMAIN}.account.myshopify.com/authentication/login/external/callback`,
       ],
