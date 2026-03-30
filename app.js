@@ -402,6 +402,25 @@ setInterval(async () => {
   }
 }, 14 * 60 * 1000);
 
+
+// ─── Debug: Log ALL incoming requests ─────────────────────────────────
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path} | body keys: ${Object.keys(req.body || {}).join(',')}`);
+  next();
+});
+
+oidc.on('grant.success', (ctx) => {
+  console.log('✅ grant.success — token issued to:', ctx.oidc?.client?.clientId);
+});
+
+oidc.on('grant.error', (ctx, err) => {
+  console.error('❌ grant.error:', err.message);
+});
+
+oidc.on('server_error', (ctx, err) => {
+  console.error('❌ server_error:', err.message, err.stack);
+});
+
 // ─── Mount OIDC provider ──────────────────────────────────────────────────────
 // Must come AFTER interaction routes so our routes take priority,
 // and oidc-provider never sees pre-parsed bodies.
