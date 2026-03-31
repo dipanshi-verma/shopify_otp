@@ -90,22 +90,25 @@ class MemoryAdapter {
   }
 
 async findByUid(uid) {
-  // Scan for Interaction with matching uid
-  const keys = await redis.keys(`oidc:Interaction:*`);
-  for (const key of keys) {
-    const data = await redis.get(key);
-    const payload = typeof data === 'string' ? JSON.parse(data) : data;
-    if (payload && payload.uid === uid) return payload;
+  for (const [, entry] of store) {
+    if (
+      entry?.payload?.uid === uid &&
+      (!entry.expiresAt || Date.now() < entry.expiresAt)
+    ) {
+      return entry.payload;
+    }
   }
   return undefined;
 }
 
 async findByUserCode(userCode) {
-  const keys = await redis.keys(`oidc:DeviceCode:*`);
-  for (const key of keys) {
-    const data = await redis.get(key);
-    const payload = typeof data === 'string' ? JSON.parse(data) : data;
-    if (payload && payload.userCode === userCode) return payload;
+  for (const [, entry] of store) {
+    if (
+      entry?.payload?.userCode === userCode &&
+      (!entry.expiresAt || Date.now() < entry.expiresAt)
+    ) {
+      return entry.payload;
+    }
   }
   return undefined;
 }
@@ -430,16 +433,17 @@ oidc.on('server_error', (ctx, err) => {
 });
 
 
-app.post('/token', (req, res, next) => {
-  console.log('🔍 /token request body:', JSON.stringify(req.body));
-  next();
-});
+
 
 // ─── Mount OIDC provider ──────────────────────────────────────────────────────
 // Must come AFTER interaction routes so our routes take priority,
 // and oidc-provider never sees pre-parsed bodies.
 app.use(oidc.callback());
 
+app.post('/token', (req, res, next) => {
+  console.log('🔍 /token request body:', JSON.stringify(req.body));
+  next();
+});
 // ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
