@@ -190,7 +190,7 @@ const oidcConfig = {
     ClientCredentials: 600, 
   },
 
-  cookies: {
+cookies: {
   keys: [process.env.COOKIE_SECRET],
   names: {
     interaction: '_interaction',
@@ -426,7 +426,11 @@ oidc.on('server_error', (ctx, err) => {
   console.error('❌ server_error:', err.message, err.stack);
 });
 
-
+app.get('/auth', (req, res, next) => {
+  // Log the state for debugging
+  console.log('🔑 /auth state:', req.query.state);
+  next();
+});
 
 
 // ─── Mount OIDC provider ──────────────────────────────────────────────────────
