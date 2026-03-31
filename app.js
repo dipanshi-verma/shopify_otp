@@ -319,12 +319,12 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
             remember: true,
           },
 
-      consent: {
-        grantId,
-        rejectedScopes: [],
-        rejectedClaims: [],
-        replace: false,
-      },
+      // consent: {
+      //   grantId,
+      //   rejectedScopes: [],
+      //   rejectedClaims: [],
+      //   replace: false,
+      // },
     }, { mergeWithLastSubmission: false });
 
   } catch (err) {
