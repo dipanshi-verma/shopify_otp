@@ -225,8 +225,8 @@ const oidcConfig = {
       session:     '_session',
       state:       '_state',
     },
-    short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
-    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
+    short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
+    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
   },
 
   // accountId is always a verified email address (set in interactionFinished)
@@ -262,23 +262,23 @@ const oidc = new Provider(ISSUER, oidcConfig);
 oidc.proxy = true;
 
 // ─── Cookie fix middleware ────────────────────────────────────────────────────
-app.use((req, res, next) => {
-  res.setHeader('ngrok-skip-browser-warning', 'true');
-  const origSetHeader = res.setHeader.bind(res);
-  res.setHeader = function (name, value) {
-    if (name.toLowerCase() === 'set-cookie') {
-      const cookies = Array.isArray(value) ? value : [value];
-      const fixed = cookies.map((c) => {
-        if (!c.includes('SameSite')) c += '; SameSite=None';
-        if (!c.includes('Secure'))   c += '; Secure';
-        return c;
-      });
-      return origSetHeader(name, fixed);
-    }
-    return origSetHeader(name, value);
-  };
-  next();
-});
+// app.use((req, res, next) => {
+//   res.setHeader('ngrok-skip-browser-warning', 'true');
+//   const origSetHeader = res.setHeader.bind(res);
+//   res.setHeader = function (name, value) {
+//     if (name.toLowerCase() === 'set-cookie') {
+//       const cookies = Array.isArray(value) ? value : [value];
+//       const fixed = cookies.map((c) => {
+//         if (!c.includes('SameSite')) c += '; SameSite=None';
+//         if (!c.includes('Secure'))   c += '; Secure';
+//         return c;
+//       });
+//       return origSetHeader(name, fixed);
+//     }
+//     return origSetHeader(name, value);
+//   };
+//   next();
+// });
 
 // ─── Request logger ───────────────────────────────────────────────────────────
 app.use((req, res, next) => {
@@ -340,7 +340,7 @@ app.get('/interaction/:uid', async (req, res, next) => {
 });
 
 // ─── Interaction: send OTP ────────────────────────────────────────────────────
-app.post('/interaction/:uid/send-otp', bodyParser, async (req, res, next) => {
+app.post('/interaction/:uid/send-otp', async (req, res, next) => {
   try {
     const { phone } = req.body;
     const { uid }   = req.params;
@@ -376,7 +376,7 @@ app.post('/interaction/:uid/send-otp', bodyParser, async (req, res, next) => {
 // as the accountId — never the raw phone number.  This ensures findAccount and
 // the OIDC claims all carry a real email as `sub`, which Shopify requires.
 //
-app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
+app.post('/interaction/:uid/verify-otp', async (req, res, next) => {
   try {
     const { phone, otp, reqId } = req.body;
     const { uid } = req.params;
