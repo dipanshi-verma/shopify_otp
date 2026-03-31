@@ -9,9 +9,9 @@ require('dotenv').config();
 const app = express();
 app.set('trust proxy', 1);
 
-//  BODY PARSER 
-app.use(express.json())
-app.use(express.urlencoded({ extended: true }))
+// //  BODY PARSER 
+// app.use(express.json())
+// app.use(express.urlencoded({ extended: true }))
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -109,7 +109,8 @@ class MemoryAdapter {
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const ISSUER      = `https://${process.env.NGROK_HOST}`;
+// const ISSUER      = `https://${process.env.NGROK_HOST}`;
+const ISSUER = process.env.ISSUER;
 const SHOP_ID     = process.env.SHOP_ID;
 const SHOP_DOMAIN = process.env.SHOP_DOMAIN;
 
@@ -340,7 +341,7 @@ app.get('/interaction/:uid', async (req, res, next) => {
 });
 
 // ─── Interaction: send OTP ────────────────────────────────────────────────────
-app.post('/interaction/:uid/send-otp', async (req, res, next) => {
+app.post('/interaction/:uid/send-otp', express.urlencoded({ extended: false }), async (req, res, next) => {
   try {
     const { phone } = req.body;
     const { uid }   = req.params;
@@ -376,7 +377,7 @@ app.post('/interaction/:uid/send-otp', async (req, res, next) => {
 // as the accountId — never the raw phone number.  This ensures findAccount and
 // the OIDC claims all carry a real email as `sub`, which Shopify requires.
 //
-app.post('/interaction/:uid/verify-otp', async (req, res, next) => {
+app.post('/interaction/:uid/verify-otp', express.urlencoded({ extended: false }), async (req, res, next) => {
   try {
     const { phone, otp, reqId } = req.body;
     const { uid } = req.params;
