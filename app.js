@@ -7,7 +7,7 @@ const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
-app.set('trust proxy', 1);
+app.set('trust proxy', true);
 
 // //  BODY PARSER 
 // app.use(express.json())
@@ -226,8 +226,8 @@ const oidcConfig = {
       session:     '_session',
       state:       '_state',
     },
-    short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
-    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
+    short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
+    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
   },
 
   // accountId is always a verified email address (set in interactionFinished)
@@ -263,23 +263,23 @@ const oidc = new Provider(ISSUER, oidcConfig);
 oidc.proxy = true;
 
 // ─── Cookie fix middleware ────────────────────────────────────────────────────
-// app.use((req, res, next) => {
-//   res.setHeader('ngrok-skip-browser-warning', 'true');
-//   const origSetHeader = res.setHeader.bind(res);
-//   res.setHeader = function (name, value) {
-//     if (name.toLowerCase() === 'set-cookie') {
-//       const cookies = Array.isArray(value) ? value : [value];
-//       const fixed = cookies.map((c) => {
-//         if (!c.includes('SameSite')) c += '; SameSite=None';
-//         if (!c.includes('Secure'))   c += '; Secure';
-//         return c;
-//       });
-//       return origSetHeader(name, fixed);
-//     }
-//     return origSetHeader(name, value);
-//   };
-//   next();
-// });
+app.use((req, res, next) => {
+  res.setHeader('ngrok-skip-browser-warning', 'true');
+  const origSetHeader = res.setHeader.bind(res);
+  res.setHeader = function (name, value) {
+    if (name.toLowerCase() === 'set-cookie') {
+      const cookies = Array.isArray(value) ? value : [value];
+      const fixed = cookies.map((c) => {
+        if (!c.includes('SameSite')) c += '; SameSite=None';
+        if (!c.includes('Secure'))   c += '; Secure';
+        return c;
+      });
+      return origSetHeader(name, fixed);
+    }
+    return origSetHeader(name, value);
+  };
+  next();
+});
 
 // ─── Request logger ───────────────────────────────────────────────────────────
 app.use((req, res, next) => {
