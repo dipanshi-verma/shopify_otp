@@ -222,9 +222,9 @@ const oidcConfig = {
       const phone = id.split('@')[0];
       return {
         sub: id,
-        email: id,
+        email: `${phone}@phone.local`,
         email_verified: true,
-        phone_number: phone,
+        phone_number: `+91${phone}`,
         phone_number_verified: true,
       };
     },
