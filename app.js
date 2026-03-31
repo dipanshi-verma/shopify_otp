@@ -8,6 +8,11 @@ require('dotenv').config();
 
 const app = express();
 app.set('trust proxy', 1);
+
+//  BODY PARSER 
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -437,7 +442,7 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
       req, res,
       {
         login: {
-          accountId: email, // always email, never phone
+          accountId: email, 
           remember:  true,
         },
       },
