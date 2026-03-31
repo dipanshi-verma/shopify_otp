@@ -181,19 +181,37 @@ const oidcConfig = {
     },
   },
 
-  findAccount: async (ctx, id) => ({
-    accountId: id,
-    async claims() {
-      return {
-        sub: id,
-        email: `${id}@phone.local`,
-        email_verified: true,
-        phone_number: `+91${id}`,
-        phone_number_verified: true,
-      };
-    },
-  }),
+  // findAccount: async (ctx, id) => ({
+  //   accountId: id,
+  //   async claims() {
+  //     return {
+  //       sub: id,
+     
+  //       email_verified: true,
+  //       phone_number: `+91${id}`,
+  //       phone_number_verified: true,
+  //     };
+  //   },
+  // }),
 
+    findAccount: async (ctx, id) => {
+    if (!id || id === "undefined" || id === "null") return undefined;
+
+    // id is always the accountId set in interactionFinished (the email address)
+    const email = id;
+
+    return {
+      accountId: id,
+      async claims(use, scope) {
+        return {
+          sub: email,              // stable unique identifier — plain email, no encoding
+          email,
+          email_verified: true,
+          updated_at: Math.floor(Date.now() / 1000),
+        };
+      },
+    };
+  },
   interactions: {
     url: async (ctx, interaction) => `/interaction/${interaction.uid}`,
   },
