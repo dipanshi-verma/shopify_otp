@@ -1,7 +1,6 @@
 const express = require('express');
 const { Provider } = require('oidc-provider');
 const path = require('path');
-const crypto = require('crypto');
 const fs = require('fs');
 
 require('dotenv').config();
@@ -11,16 +10,11 @@ app.set('trust proxy', 1);
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
-
 app.use((req, res, next) => {
   req.headers['x-forwarded-proto'] = 'https';
   next();
 });
 
-// ─── NO global body parser ────────────────────────────────────────────────────
-// express.json() and express.urlencoded() must NOT be registered globally
-// because they break oidc-provider's interactionFinished redirect.
-// Instead we apply bodyParser per-route below.
 const bodyParser = express.urlencoded({ extended: false });
 
 // ─── Load Keys ────────────────────────────────────────────────────────────────
@@ -35,46 +29,28 @@ function loadJWKS() {
   throw new Error('No keys found. Run: node generate-keys.js');
 }
 
-// ─── Persistent In-Memory Adapter ────────────────────────────────────────────
-// Replaces oidc-provider's default dev adapter.
-// Fixes the "quick start development-only" warning and SessionNotFound errors.
-// Sessions survive across requests (but NOT server restarts — that is fine).
+// ─── In-Memory Adapter ────────────────────────────────────────────────────────
 const store = new Map();
 
 const grantable = new Set([
-  'AccessToken',
-  'AuthorizationCode',
-  'RefreshToken',
-  'DeviceCode',
-  'BackchannelAuthenticationRequest',
-  'ClientCredentials',
-  'Client',
-  'InitialAccessToken',
-  'RegistrationAccessToken',
-  'Grant',
+  'AccessToken', 'AuthorizationCode', 'RefreshToken', 'DeviceCode',
+  'BackchannelAuthenticationRequest', 'ClientCredentials', 'Client',
+  'InitialAccessToken', 'RegistrationAccessToken', 'Grant',
 ]);
 
 class MemoryAdapter {
-  constructor(name) {
-    this.name = name;
-  }
+  constructor(name) { this.name = name; }
 
-  key(id) {
-    return `${this.name}:${id}`;
-  }
+  key(id) { return `${this.name}:${id}`; }
 
   async upsert(id, payload, expiresIn) {
     const key = this.key(id);
     const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined;
     store.set(key, { payload, expiresAt });
-
-    // Track all tokens under a grantId so we can revoke them together
     if (grantable.has(this.name) && payload.grantId) {
       const grantKey = `grant:${payload.grantId}`;
       const grant = store.get(grantKey) || { payload: { ids: [] } };
-      if (!grant.payload.ids.includes(key)) {
-        grant.payload.ids.push(key);
-      }
+      if (!grant.payload.ids.includes(key)) grant.payload.ids.push(key);
       store.set(grantKey, grant);
     }
   }
@@ -89,40 +65,32 @@ class MemoryAdapter {
     return entry.payload;
   }
 
-async findByUid(uid) {
-  for (const [, entry] of store) {
-    if (
-      entry?.payload?.uid === uid &&
-      (!entry.expiresAt || Date.now() < entry.expiresAt)
-    ) {
-      return entry.payload;
+  async findByUid(uid) {
+    for (const [, entry] of store) {
+      if (entry?.payload?.uid === uid &&
+          (!entry.expiresAt || Date.now() < entry.expiresAt)) {
+        return entry.payload;
+      }
     }
+    return undefined;
   }
-  return undefined;
-}
 
-async findByUserCode(userCode) {
-  for (const [, entry] of store) {
-    if (
-      entry?.payload?.userCode === userCode &&
-      (!entry.expiresAt || Date.now() < entry.expiresAt)
-    ) {
-      return entry.payload;
+  async findByUserCode(userCode) {
+    for (const [, entry] of store) {
+      if (entry?.payload?.userCode === userCode &&
+          (!entry.expiresAt || Date.now() < entry.expiresAt)) {
+        return entry.payload;
+      }
     }
+    return undefined;
   }
-  return undefined;
-}
 
   async consume(id) {
     const entry = store.get(this.key(id));
-    if (entry) {
-      entry.payload.consumed = Math.floor(Date.now() / 1000);
-    }
+    if (entry) entry.payload.consumed = Math.floor(Date.now() / 1000);
   }
 
-  async destroy(id) {
-    store.delete(this.key(id));
-  }
+  async destroy(id) { store.delete(this.key(id)); }
 
   async revokeByGrantId(grantId) {
     const grantKey = `grant:${grantId}`;
@@ -134,43 +102,39 @@ async findByUserCode(userCode) {
   }
 }
 
-// ─── OIDC Provider Config ─────────────────────────────────────────────────────
+// ─── Config ───────────────────────────────────────────────────────────────────
 const ISSUER = `https://${process.env.NGROK_HOST}`;
 const SHOP_ID = process.env.SHOP_ID;
 const SHOP_DOMAIN = process.env.SHOP_DOMAIN;
 
 const oidcConfig = {
-  // ✅ Custom adapter — fixes SessionNotFound and removes dev warning
   adapter: MemoryAdapter,
-
   issuer: ISSUER,
   scopes: ['openid', 'email', 'offline_access', 'customer-account-api:full'],
 
-  clients: [
-    {
-      client_id: process.env.CLIENT_ID,
-      client_secret: process.env.CLIENT_SECRET,
-      token_endpoint_auth_method: 'client_secret_post',
-      grant_types: ['authorization_code', 'refresh_token'],
-      response_types: ['code'],
-      redirect_uris: [
-        `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
-        `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
-        `https://shopify.com/${SHOP_ID}/account/callback`,
-        `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
-        `https://${SHOP_DOMAIN}.account.myshopify.com/authentication/login/external/callback`,
-      ],
-      scope: 'openid email offline_access customer-account-api:full',
-    },
-  ],
+  clients: [{
+    client_id: process.env.CLIENT_ID,
+    client_secret: process.env.CLIENT_SECRET,
+    token_endpoint_auth_method: 'client_secret_post',
+    grant_types: ['authorization_code', 'refresh_token'],
+    response_types: ['code'],
+    redirect_uris: [
+      `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
+      `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
+      `https://shopify.com/${SHOP_ID}/account/callback`,
+      `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
+      `https://${SHOP_DOMAIN}.account.myshopify.com/authentication/login/external/callback`,
+    ],
+    scope: 'openid email offline_access customer-account-api:full',
+  }],
 
   jwks: loadJWKS(),
   pkce: { required: () => false },
 
   features: {
     devInteractions: { enabled: false },
-    introspection: { enabled: true }, 
-    revocation: { enabled: true }, 
+    introspection: { enabled: true },
+    revocation: { enabled: true },
     rpInitiatedLogout: {
       enabled: true,
       logoutSource: async (ctx, form) => {
@@ -185,52 +149,42 @@ const oidcConfig = {
     IdToken: 3600,
     RefreshToken: 1209600,
     Interaction: 3600,
-    Session: 1209600, // 14 days
-    Grant: 1209600,        
-    ClientCredentials: 600, 
+    Session: 1209600,
+    Grant: 1209600,
+    ClientCredentials: 600,
   },
 
-cookies: {
-  keys: [process.env.COOKIE_SECRET],
-  names: {
-    interaction: '_interaction',
-    resume: '_interaction_resume',  
-    session: '_session',
-    state: '_state',
+  cookies: {
+    keys: [process.env.COOKIE_SECRET],
+    names: {
+      interaction: '_interaction',
+      resume: '_interaction_resume',
+      session: '_session',
+      state: '_state',
+    },
+    short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
+    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
   },
-  short: {
-    sameSite: 'None',  
-    secure: true,
-    httpOnly: true,
-    path: '/',
-    overwrite: true,  
-    signed: true,  
-  },  
-  long: {
-    sameSite: 'None',  
-    secure: true,
-    httpOnly: true,
-    path: '/',
-    overwrite: true,  
-    signed: true,     
-  },
-},
 
-findAccount: async (ctx, id) => ({
-  accountId: id,
-  async claims() {
-    return {
-      sub: id,
-      email: `${id}@phone.local`,
-      email_verified: true,
-      phone_number: `+91${id}`,
-      phone_number_verified: true,
-    };
-  },
-}),
+  findAccount: async (ctx, id) => ({
+    accountId: id,
+    async claims() {
+      return {
+        sub: id,
+        email: `${id}@phone.local`,
+        email_verified: true,
+        phone_number: `+91${id}`,
+        phone_number_verified: true,
+      };
+    },
+  }),
+
   interactions: {
     url: async (ctx, interaction) => `/interaction/${interaction.uid}`,
   },
+
+  // ✅ KEY FIX: Pass state back to Shopify via extraParams
+  extraParams: ['state', 'nonce'],
 
   renderError: async (ctx, out, error) => {
     console.error('OIDC Error:', error);
@@ -241,12 +195,11 @@ findAccount: async (ctx, id) => ({
 const oidc = new Provider(ISSUER, oidcConfig);
 oidc.proxy = true;
 
-// ✅ Bypass ngrok browser warning — prevents cookie wipe
+// ─── Cookie fix middleware ────────────────────────────────────────────────────
 app.use((req, res, next) => {
   res.setHeader('ngrok-skip-browser-warning', 'true');
-  // Force cookies to work cross-domain
   const origSetHeader = res.setHeader.bind(res);
-  res.setHeader = function(name, value) {
+  res.setHeader = function (name, value) {
     if (name.toLowerCase() === 'set-cookie') {
       const cookies = Array.isArray(value) ? value : [value];
       const fixed = cookies.map(c => {
@@ -261,15 +214,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── Demo / MSG91 config ──────────────────────────────────────────────────────
+// ─── Demo config ──────────────────────────────────────────────────────────────
 const DEMO_MODE = process.env.DEMO_MODE === 'true';
 const DEMO_OTP = process.env.DEMO_OTP || '123456';
 
 // ─── Interaction Routes ───────────────────────────────────────────────────────
-// IMPORTANT: These routes must be registered BEFORE oidc.callback()
-// and body parser must be applied per-route, not globally.
-
-// GET /interaction/:uid — show phone input form
 app.get('/interaction/:uid', async (req, res, next) => {
   try {
     const interaction = await oidc.interactionDetails(req, res);
@@ -280,51 +229,29 @@ app.get('/interaction/:uid', async (req, res, next) => {
   }
 });
 
-// POST /interaction/:uid/send-otp — send OTP to phone
 app.post('/interaction/:uid/send-otp', bodyParser, async (req, res, next) => {
   try {
     const { phone } = req.body;
     const uid = req.params.uid;
 
     if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
-      return res.render('login', {
-        uid,
-        error: 'Please enter a valid 10-digit Indian mobile number.',
-      });
+      return res.render('login', { uid, error: 'Please enter a valid 10-digit Indian mobile number.' });
     }
 
     if (DEMO_MODE) {
       console.log(`[DEMO] Skipping MSG91. OTP for ${phone} is: ${DEMO_OTP}`);
-      return res.render('verify', {
-        uid,
-        phone,
-        reqId: null,
-        error: null,
-        demoOtp: DEMO_OTP,
-      });
+      return res.render('verify', { uid, phone, reqId: null, error: null, demoOtp: DEMO_OTP });
     }
 
     const mobile = `91${phone}`;
     const result = await sendOTP(mobile);
-
-    if (!result.success) {
-      return res.render('login', { uid, error: result.message });
-    }
+    if (!result.success) return res.render('login', { uid, error: result.message });
 
     console.log(`OTP sent to ${mobile}, reqId: ${result.reqId}`);
-    res.render('verify', {
-      uid,
-      phone,
-      reqId: result.reqId || null,
-      error: null,
-      demoOtp: null,
-    });
-  } catch (err) {
-    next(err);
-  }
+    res.render('verify', { uid, phone, reqId: result.reqId || null, error: null, demoOtp: null });
+  } catch (err) { next(err); }
 });
 
-// POST /interaction/:uid/verify-otp — verify OTP and complete login
 app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
   try {
     const { phone, otp, reqId } = req.body;
@@ -363,10 +290,9 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
       });
     }
 
-    const accountId = phone; 
+    const accountId = phone;
     console.log(`✅ Login success for: ${accountId}`);
 
-    // ✅ Explicitly create grant so Shopify token exchange works
     const grant = new oidc.Grant({
       accountId,
       clientId: process.env.CLIENT_ID,
@@ -386,18 +312,17 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
     }, { mergeWithLastSubmission: false });
 
   } catch (err) {
-    console.error('❌ verify-otp ERROR:', err.message);
-    console.error(err.stack);
+    console.error('❌ verify-otp ERROR:', err.message, err.stack);
     next(err);
   }
 });
 
-// Health check
+// ─── Health check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// Keep-alive ping every 14 minutes (prevents Render free tier sleep)
+// Keep-alive ping every 4 minutes
 setInterval(async () => {
   try {
     await fetch(`https://${process.env.NGROK_HOST}/health`);
@@ -405,13 +330,22 @@ setInterval(async () => {
   } catch (err) {
     console.error('Keep-alive failed:', err.message);
   }
-}, 14 * 60 * 1000);
+}, 4 * 60 * 1000);
 
-
-// ─── Debug: Log ALL incoming requests ─────────────────────────────────
+// ─── Request logger ───────────────────────────────────────────────────────────
 app.use((req, res, next) => {
-  console.log(`📨 ${req.method} ${req.path} | body keys: ${Object.keys(req.body || {}).join(',')}`);
+  console.log(`📨 ${req.method} ${req.path} | query: ${JSON.stringify(req.query)} | body keys: ${Object.keys(req.body || {}).join(',')}`);
   next();
+});
+
+// ─── OIDC Events ─────────────────────────────────────────────────────────────
+oidc.on('authorization.success', (ctx) => {
+  console.log('✅ authorization.success → redirecting to:', ctx.oidc?.redirectUri);
+  console.log('   state in response:', ctx.oidc?.params?.state);
+});
+
+oidc.on('authorization.error', (ctx, err) => {
+  console.error('❌ authorization.error:', err.message, JSON.stringify(ctx.oidc?.params));
 });
 
 oidc.on('grant.success', (ctx) => {
@@ -426,20 +360,10 @@ oidc.on('server_error', (ctx, err) => {
   console.error('❌ server_error:', err.message, err.stack);
 });
 
-app.get('/auth', (req, res, next) => {
-  // Log the state for debugging
-  console.log('🔑 /auth state:', req.query.state);
-  next();
-});
-
-
-// ─── Mount OIDC provider ──────────────────────────────────────────────────────
-// Must come AFTER interaction routes so our routes take priority,
-// and oidc-provider never sees pre-parsed bodies.
+// ─── Mount OIDC ───────────────────────────────────────────────────────────────
 app.use(oidc.callback());
 
-
-// ─── Start Server ─────────────────────────────────────────────────────────────
+// ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`\n🚀 IDP Server running on port ${PORT}`);
@@ -449,10 +373,9 @@ app.listen(PORT, () => {
 });
 
 // ─── MSG91 Helpers ────────────────────────────────────────────────────────────
-
 async function sendOTP(mobile) {
   if (mobile === '919193521876') {
-    console.log('[DEMO NUMBER] Bypassing MSG91 for demo number');
+    console.log('[DEMO NUMBER] Bypassing MSG91');
     return { success: true, reqId: 'demo' };
   }
   try {
