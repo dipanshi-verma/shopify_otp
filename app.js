@@ -2,6 +2,7 @@ const express = require('express');
 const { Provider } = require('oidc-provider');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 
 require('dotenv').config();
 
@@ -103,21 +104,77 @@ class MemoryAdapter {
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const ISSUER = `https://${process.env.NGROK_HOST}`;
-const SHOP_ID = process.env.SHOP_ID;
+const ISSUER      = `https://${process.env.NGROK_HOST}`;
+const SHOP_ID     = process.env.SHOP_ID;
 const SHOP_DOMAIN = process.env.SHOP_DOMAIN;
 
+if (!SHOP_ID || !SHOP_DOMAIN) {
+  console.error('ERROR: SHOP_ID and SHOP_DOMAIN must be set in .env');
+  process.exit(1);
+}
+
+const SHOPIFY_STORE_URL = `https://${SHOP_DOMAIN}.myshopify.com`;
+
+// ─── Demo config ──────────────────────────────────────────────────────────────
+const DEMO_MODE = process.env.DEMO_MODE === 'true';
+const DEMO_OTP  = process.env.DEMO_OTP || '123456';
+
+// ─── Phone → Email lookup ─────────────────────────────────────────────────────
+//
+// Shopify Customer Account API requires a real email as the `sub` / accountId.
+// After verifying the OTP we fetch the customer's email from your backend so
+// the OIDC identity token carries the right subject.
+//
+// Replace the function body with your actual customer-lookup API call.
+// It must return a string (email) on success, or null when not found.
+//
+async function lookupEmailByPhone(phone) {
+  // ── DEMO shortcut ──────────────────────────────────────────────────────────
+  if (DEMO_MODE) {
+    // In demo mode every phone maps to a predictable email so you can test
+    // without a real customer database.
+    return `${phone}@demo.example.com`;
+  }
+
+  // ── Real lookup ────────────────────────────────────────────────────────────
+  // Example: call your own API that knows which email belongs to this phone.
+  //
+  // try {
+  //   const resp = await fetch(`https://your-api.example.com/customers/by-phone/${phone}`, {
+  //     headers: { Authorization: `Bearer ${process.env.INTERNAL_API_KEY}` },
+  //   });
+  //   if (!resp.ok) return null;
+  //   const data = await resp.json();
+  //   return data.email ?? null;
+  // } catch (err) {
+  //   console.error('[lookupEmailByPhone] Error:', err.message);
+  //   return null;
+  // }
+
+  throw new Error(
+    'lookupEmailByPhone: not implemented. ' +
+    'Add your customer lookup logic or set DEMO_MODE=true.',
+  );
+}
+
+// ─── OIDC Configuration ───────────────────────────────────────────────────────
 const oidcConfig = {
   adapter: MemoryAdapter,
   issuer: ISSUER,
+
   scopes: ['openid', 'email', 'offline_access', 'customer-account-api:full'],
 
+  claims: {
+    openid: ['sub'],
+    email:  ['email', 'email_verified'],
+  },
+
   clients: [{
-    client_id: process.env.CLIENT_ID,
-    client_secret: process.env.CLIENT_SECRET,
-    token_endpoint_auth_method: 'client_secret_post',
-    grant_types: ['authorization_code', 'refresh_token'],
-    response_types: ['code'],
+    client_id:                    process.env.CLIENT_ID,
+    client_secret:                process.env.CLIENT_SECRET,
+    token_endpoint_auth_method:   'client_secret_post',
+    grant_types:                  ['authorization_code', 'refresh_token'],
+    response_types:               ['code'],
     redirect_uris: [
       `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
       `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
@@ -129,12 +186,13 @@ const oidcConfig = {
   }],
 
   jwks: loadJWKS(),
+
   pkce: { required: () => false },
 
   features: {
     devInteractions: { enabled: false },
-    introspection: { enabled: true },
-    revocation: { enabled: true },
+    introspection:   { enabled: true },
+    revocation:      { enabled: true },
     rpInitiatedLogout: {
       enabled: true,
       logoutSource: async (ctx, form) => {
@@ -145,73 +203,46 @@ const oidcConfig = {
 
   ttl: {
     AuthorizationCode: 300,
-    AccessToken: 3600,
-    IdToken: 3600,
-    RefreshToken: 1209600,
-    Interaction: 3600,
-    Session: 1209600,
-    Grant: 1209600,
+    AccessToken:       3600,
+    IdToken:           3600,
+    RefreshToken:      1209600,
+    Interaction:       3600,
+    Session:           1209600,
+    Grant:             1209600,
     ClientCredentials: 600,
   },
 
-  // ✅ signed: false fixes SessionNotFound in cross-origin flows
   cookies: {
     keys: [process.env.COOKIE_SECRET],
     names: {
       interaction: '_interaction',
-      resume: '_interaction_resume',
-      session: '_session',
-      state: '_state',
+      resume:      '_interaction_resume',
+      session:     '_session',
+      state:       '_state',
     },
-    short: {
-      sameSite: 'None',
-      secure: true,
-      httpOnly: true,
-      path: '/',
-      overwrite: true,
-      signed: false,
-    },
-    long: {
-      sameSite: 'None',
-      secure: true,
-      httpOnly: true,
-      path: '/',
-      overwrite: true,
-      signed: false,
-    },
+    short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
+    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
   },
 
-  // findAccount: async (ctx, id) => ({
-  //   accountId: id,
-  //   async claims() {
-  //     return {
-  //       sub: id,
-     
-  //       email_verified: true,
-  //       phone_number: `+91${id}`,
-  //       phone_number_verified: true,
-  //     };
-  //   },
-  // }),
+  // accountId is always a verified email address (set in interactionFinished)
+  findAccount: async (ctx, id) => {
+    if (!id || id === 'undefined' || id === 'null') return undefined;
 
-    findAccount: async (ctx, id) => {
-    if (!id || id === "undefined" || id === "null") return undefined;
-
-    // id is always the accountId set in interactionFinished (the email address)
-    const email = id;
+    const email = id; // accountId is always email
 
     return {
       accountId: id,
       async claims(use, scope) {
         return {
-          sub: email,              // stable unique identifier — plain email, no encoding
+          sub:            email,
           email,
           email_verified: true,
-          updated_at: Math.floor(Date.now() / 1000),
+          updated_at:     Math.floor(Date.now() / 1000),
         };
       },
     };
   },
+
   interactions: {
     url: async (ctx, interaction) => `/interaction/${interaction.uid}`,
   },
@@ -232,9 +263,9 @@ app.use((req, res, next) => {
   res.setHeader = function (name, value) {
     if (name.toLowerCase() === 'set-cookie') {
       const cookies = Array.isArray(value) ? value : [value];
-      const fixed = cookies.map(c => {
+      const fixed = cookies.map((c) => {
         if (!c.includes('SameSite')) c += '; SameSite=None';
-        if (!c.includes('Secure')) c += '; Secure';
+        if (!c.includes('Secure'))   c += '; Secure';
         return c;
       });
       return origSetHeader(name, fixed);
@@ -244,28 +275,76 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── Demo config ──────────────────────────────────────────────────────────────
-const DEMO_MODE = process.env.DEMO_MODE === 'true';
-const DEMO_OTP = process.env.DEMO_OTP || '123456';
+// ─── Request logger ───────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path} | query: ${JSON.stringify(req.query)}`);
+  next();
+});
 
-// ─── Interaction Routes ───────────────────────────────────────────────────────
+// ─── Interaction: GET ─────────────────────────────────────────────────────────
+//
+// Handles both the initial login prompt AND the consent step that oidc-provider
+// injects automatically after a successful login.  Mirrors the working pattern
+// from the credential-based flow (file 2).
+//
 app.get('/interaction/:uid', async (req, res, next) => {
+  let interactionDetails;
   try {
-    const interaction = await oidc.interactionDetails(req, res);
-    console.log('Interaction started:', interaction.uid);
-    res.render('login', { uid: interaction.uid, error: null });
+    interactionDetails = await oidc.interactionDetails(req, res);
+  } catch (err) {
+    // Session expired or already consumed — send the user home
+    console.log('[Interaction GET] Session not found — redirecting to store');
+    return res.redirect(SHOPIFY_STORE_URL);
+  }
+
+  try {
+    const { uid, params, prompt, session: oidcSession } = interactionDetails;
+
+    // ── Auto-grant consent (same pattern as working flow) ──────────────────
+    if (prompt.name === 'consent') {
+      console.log('[Interaction GET] Auto-granting consent');
+
+      const { Grant } = oidc;
+      let grant = oidcSession?.grantId
+        ? await Grant.find(oidcSession.grantId)
+        : null;
+
+      if (!grant) {
+        grant = new Grant({
+          accountId: oidcSession?.accountId,
+          clientId:  params.client_id,
+        });
+      }
+
+      if (params.scope) grant.addOIDCScope(params.scope);
+      const grantId = await grant.save();
+
+      return oidc.interactionFinished(
+        req, res,
+        { consent: { grantId } },
+        { mergeWithLastSubmission: true },
+      );
+    }
+
+    // ── Normal login prompt — show phone/OTP form ──────────────────────────
+    console.log('[Interaction GET] Showing login form for uid:', uid);
+    res.render('login', { uid, error: null });
   } catch (err) {
     next(err);
   }
 });
 
+// ─── Interaction: send OTP ────────────────────────────────────────────────────
 app.post('/interaction/:uid/send-otp', bodyParser, async (req, res, next) => {
   try {
     const { phone } = req.body;
-    const uid = req.params.uid;
+    const { uid }   = req.params;
 
     if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
-      return res.render('login', { uid, error: 'Please enter a valid 10-digit Indian mobile number.' });
+      return res.render('login', {
+        uid,
+        error: 'Please enter a valid 10-digit Indian mobile number.',
+      });
     }
 
     if (DEMO_MODE) {
@@ -275,17 +354,27 @@ app.post('/interaction/:uid/send-otp', bodyParser, async (req, res, next) => {
 
     const mobile = `91${phone}`;
     const result = await sendOTP(mobile);
-    if (!result.success) return res.render('login', { uid, error: result.message });
+    if (!result.success) {
+      return res.render('login', { uid, error: result.message });
+    }
 
     console.log(`OTP sent to ${mobile}, reqId: ${result.reqId}`);
     res.render('verify', { uid, phone, reqId: result.reqId || null, error: null, demoOtp: null });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 });
 
+// ─── Interaction: verify OTP ──────────────────────────────────────────────────
+//
+// KEY FIX: after OTP verification we look up the customer's email and use THAT
+// as the accountId — never the raw phone number.  This ensures findAccount and
+// the OIDC claims all carry a real email as `sub`, which Shopify requires.
+//
 app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
   try {
     const { phone, otp, reqId } = req.body;
-    const uid = req.params.uid;
+    const { uid }               = req.params;
 
     if (!otp || String(otp).length < 4) {
       return res.render('verify', {
@@ -295,6 +384,7 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
       });
     }
 
+    // ── Verify the OTP ─────────────────────────────────────────────────────
     let verified = false;
 
     if (DEMO_MODE) {
@@ -320,31 +410,39 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
       });
     }
 
-    const accountId = phone;
-    console.log(`✅ Login success for: ${accountId}`);
+    // ── OTP verified — resolve the customer's email ────────────────────────
+    //
+    // This is the critical step your original code was missing.
+    // We MUST use email as accountId, not phone, because:
+    //   1. findAccount returns claims with sub = accountId
+    //   2. Shopify maps sub → customer record by email
+    //
+    const email = await lookupEmailByPhone(phone);
+    if (!email) {
+      return res.render('verify', {
+        uid, phone, reqId: reqId || null,
+        error: 'No account found for this number. Please contact support.',
+        demoOtp: DEMO_MODE ? DEMO_OTP : null,
+      });
+    }
 
-    const grant = new oidc.Grant({
-      accountId,
-      clientId: process.env.CLIENT_ID,
-    });
-    grant.addOIDCScope('openid email offline_access customer-account-api:full');
-    const grantId = await grant.save();
+    console.log(`✅ OTP verified. Logging in as: ${email}`);
 
-    console.log(`🔄 Calling interactionFinished for uid: ${uid}`);
-    await oidc.interactionFinished(req, res, {
-      login: {
-            accountId: 'dipanshiverma1002@gmail.com',
-            remember: true,
-          },
-
-      // consent: {
-      //   grantId,
-      //   rejectedScopes: [],
-      //   rejectedClaims: [],
-      //   replace: false,
-      // },
-    }, { mergeWithLastSubmission: false });
-
+    // ── Finish the login step ──────────────────────────────────────────────
+    //
+    // We only finish the LOGIN step here.  The consent step is handled
+    // automatically in the GET handler above — same pattern as the working flow.
+    //
+    await oidc.interactionFinished(
+      req, res,
+      {
+        login: {
+          accountId: email, // always email, never phone
+          remember:  true,
+        },
+      },
+      { mergeWithLastSubmission: false },
+    );
   } catch (err) {
     console.error('❌ verify-otp ERROR:', err.message, err.stack);
     next(err);
@@ -366,16 +464,9 @@ setInterval(async () => {
   }
 }, 4 * 60 * 1000);
 
-// ─── Request logger ───────────────────────────────────────────────────────────
-app.use((req, res, next) => {
-  console.log(`📨 ${req.method} ${req.path} | query: ${JSON.stringify(req.query)} | body keys: ${Object.keys(req.body || {}).join(',')}`);
-  next();
-});
-
 // ─── OIDC Events ──────────────────────────────────────────────────────────────
 oidc.on('authorization.success', (ctx) => {
   console.log('✅ authorization.success → redirecting to:', ctx.oidc?.redirectUri);
-  console.log('   state in response:', ctx.oidc?.params?.state);
 });
 
 oidc.on('authorization.error', (ctx, err) => {
@@ -384,10 +475,12 @@ oidc.on('authorization.error', (ctx, err) => {
 
 oidc.on('grant.success', (ctx) => {
   console.log('✅ grant.success — token issued to:', ctx.oidc?.client?.clientId);
+  console.log('   grant_type:', ctx.oidc?.params?.grant_type);
 });
 
 oidc.on('grant.error', (ctx, err) => {
   console.error('❌ grant.error:', err.message);
+  console.error('   body:', ctx.request?.body);
 });
 
 oidc.on('server_error', (ctx, err) => {
@@ -396,6 +489,15 @@ oidc.on('server_error', (ctx, err) => {
 
 // ─── Mount OIDC ───────────────────────────────────────────────────────────────
 app.use(oidc.callback());
+
+// ─── Global error handler ─────────────────────────────────────────────────────
+app.use((err, req, res, next) => {
+  console.error('[Server Error]', err);
+  res.status(err.status || 500).json({
+    error: err.error || 'server_error',
+    error_description: err.error_description || err.message,
+  });
+});
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
@@ -413,9 +515,14 @@ async function sendOTP(mobile) {
     return { success: true, reqId: 'demo' };
   }
   try {
-    const url = `https://control.msg91.com/api/v5/otp?template_id=${process.env.MSG91_TEMPLATE_ID}&mobile=${mobile}&authkey=${process.env.MSG91_AUTH_KEY}&otp_length=6&otp_expiry=10`;
+    const url =
+      `https://control.msg91.com/api/v5/otp` +
+      `?template_id=${process.env.MSG91_TEMPLATE_ID}` +
+      `&mobile=${mobile}` +
+      `&authkey=${process.env.MSG91_AUTH_KEY}` +
+      `&otp_length=6&otp_expiry=10`;
     const response = await fetch(url, { method: 'GET' });
-    const data = await response.json();
+    const data     = await response.json();
     console.log('MSG91 send response:', JSON.stringify(data));
     if (data.type === 'success') return { success: true, reqId: data.request_id || null };
     return { success: false, message: data.message || 'Failed to send OTP.' };
@@ -431,9 +538,11 @@ async function verifyOTP(mobile, otp) {
     return { success: otp === '123456' };
   }
   try {
-    const url = `https://control.msg91.com/api/v5/otp/verify?mobile=${mobile}&otp=${otp}&authkey=${process.env.MSG91_AUTH_KEY}`;
+    const url =
+      `https://control.msg91.com/api/v5/otp/verify` +
+      `?mobile=${mobile}&otp=${otp}&authkey=${process.env.MSG91_AUTH_KEY}`;
     const response = await fetch(url, { method: 'GET' });
-    const data = await response.json();
+    const data     = await response.json();
     console.log('MSG91 verify response:', JSON.stringify(data));
     if (data.type === 'success') return { success: true };
     return { success: false, message: 'Invalid or expired OTP. Please try again.' };
