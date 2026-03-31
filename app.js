@@ -287,6 +287,8 @@ app.use((req, res, next) => {
   next();
 });
 
+
+app.use('/token', express.urlencoded({ extended: false }));
 // ─── Interaction: GET ─────────────────────────────────────────────────────────
 //
 // Handles both the initial login prompt AND the consent step that oidc-provider
@@ -447,7 +449,7 @@ app.post('/interaction/:uid/verify-otp', express.urlencoded({ extended: false })
           remember:  true,
         },
       },
-      { mergeWithLastSubmission: false },
+      { mergeWithLastSubmission: true },
     );
   } catch (err) {
     console.error('❌ verify-otp ERROR:', err.message, err.stack);
