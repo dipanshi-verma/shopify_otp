@@ -216,20 +216,18 @@ const oidcConfig = {
   },
 },
 
-  findAccount: async (ctx, id) => ({
-    accountId: id,
-    async claims() {
-      const phone = id.split('@')[0];
-      return {
-        sub: id,
-        email: `${phone}@phone.local`,
-        email_verified: true,
-        phone_number: `+91${phone}`,
-        phone_number_verified: true,
-      };
-    },
-  }),
-
+findAccount: async (ctx, id) => ({
+  accountId: id,
+  async claims() {
+    return {
+      sub: id,
+      email: `${id}@phone.local`,
+      email_verified: true,
+      phone_number: `+91${id}`,
+      phone_number_verified: true,
+    };
+  },
+}),
   interactions: {
     url: async (ctx, interaction) => `/interaction/${interaction.uid}`,
   },
@@ -365,7 +363,7 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
       });
     }
 
-    const accountId = `${phone}@${SHOP_DOMAIN}.customers`;
+    const accountId = phone; 
     console.log(`✅ Login success for: ${accountId}`);
 
     // ✅ Explicitly create grant so Shopify token exchange works
