@@ -373,11 +373,7 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
       accountId,
       clientId: process.env.CLIENT_ID,
     });
-    grant.addOIDCScope('openid email offline_access');
-    grant.addResourceScope(         
-      `https://shopify.com/`,
-      'customer-account-api:full'
-    );
+    grant.addOIDCScope('openid email offline_access customer-account-api:full');
     const grantId = await grant.save();
 
     console.log(`🔄 Calling interactionFinished for uid: ${uid}`);
