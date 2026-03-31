@@ -154,6 +154,7 @@ const oidcConfig = {
     ClientCredentials: 600,
   },
 
+  // ✅ signed: false fixes SessionNotFound in cross-origin flows
   cookies: {
     keys: [process.env.COOKIE_SECRET],
     names: {
@@ -162,8 +163,22 @@ const oidcConfig = {
       session: '_session',
       state: '_state',
     },
-    short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
-    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: true },
+    short: {
+      sameSite: 'None',
+      secure: true,
+      httpOnly: true,
+      path: '/',
+      overwrite: true,
+      signed: false,
+    },
+    long: {
+      sameSite: 'None',
+      secure: true,
+      httpOnly: true,
+      path: '/',
+      overwrite: true,
+      signed: false,
+    },
   },
 
   findAccount: async (ctx, id) => ({
@@ -182,9 +197,6 @@ const oidcConfig = {
   interactions: {
     url: async (ctx, interaction) => `/interaction/${interaction.uid}`,
   },
-
-  // ✅ KEY FIX: Pass state back to Shopify via extraParams
-  extraParams: ['state', 'nonce'],
 
   renderError: async (ctx, out, error) => {
     console.error('OIDC Error:', error);
@@ -338,7 +350,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// ─── OIDC Events ─────────────────────────────────────────────────────────────
+// ─── OIDC Events ──────────────────────────────────────────────────────────────
 oidc.on('authorization.success', (ctx) => {
   console.log('✅ authorization.success → redirecting to:', ctx.oidc?.redirectUri);
   console.log('   state in response:', ctx.oidc?.params?.state);
