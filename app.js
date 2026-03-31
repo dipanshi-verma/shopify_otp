@@ -21,7 +21,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const bodyParser = express.urlencoded({ extended: false });
+// const bodyParser = express.urlencoded({ extended: false });
 
 // ─── Load Keys ────────────────────────────────────────────────────────────────
 function loadJWKS() {
@@ -379,7 +379,7 @@ app.post('/interaction/:uid/send-otp', bodyParser, async (req, res, next) => {
 app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
   try {
     const { phone, otp, reqId } = req.body;
-    const { uid }               = req.params;
+    const { uid } = req.params;
 
     if (!otp || String(otp).length < 4) {
       return res.render('verify', {
@@ -527,7 +527,7 @@ async function sendOTP(mobile) {
       `&authkey=${process.env.MSG91_AUTH_KEY}` +
       `&otp_length=6&otp_expiry=10`;
     const response = await fetch(url, { method: 'GET' });
-    const data     = await response.json();
+    const data = await response.json();
     console.log('MSG91 send response:', JSON.stringify(data));
     if (data.type === 'success') return { success: true, reqId: data.request_id || null };
     return { success: false, message: data.message || 'Failed to send OTP.' };
@@ -547,7 +547,7 @@ async function verifyOTP(mobile, otp) {
       `https://control.msg91.com/api/v5/otp/verify` +
       `?mobile=${mobile}&otp=${otp}&authkey=${process.env.MSG91_AUTH_KEY}`;
     const response = await fetch(url, { method: 'GET' });
-    const data     = await response.json();
+    const data = await response.json();
     console.log('MSG91 verify response:', JSON.stringify(data));
     if (data.type === 'success') return { success: true };
     return { success: false, message: 'Invalid or expired OTP. Please try again.' };
