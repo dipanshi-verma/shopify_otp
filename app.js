@@ -440,10 +440,7 @@ oidc.on('server_error', (ctx, err) => {
 // and oidc-provider never sees pre-parsed bodies.
 app.use(oidc.callback());
 
-app.post('/token', (req, res, next) => {
-  console.log('🔍 /token request body:', JSON.stringify(req.body));
-  next();
-});
+
 // ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
