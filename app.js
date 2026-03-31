@@ -314,7 +314,11 @@ app.post('/interaction/:uid/verify-otp', bodyParser, async (req, res, next) => {
 
     console.log(`🔄 Calling interactionFinished for uid: ${uid}`);
     await oidc.interactionFinished(req, res, {
-      login: { accountId },
+      login: {
+            accountId: 'dipanshiverma1002@gmail.com',
+            remember: true,
+          },
+
       consent: {
         grantId,
         rejectedScopes: [],
