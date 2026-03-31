@@ -89,19 +89,26 @@ class MemoryAdapter {
     return entry.payload;
   }
 
-  async findByUserCode(userCode) {
-    for (const [, { payload }] of store) {
-      if (payload.userCode === userCode) return payload;
-    }
-    return undefined;
+async findByUid(uid) {
+  // Scan for Interaction with matching uid
+  const keys = await redis.keys(`oidc:Interaction:*`);
+  for (const key of keys) {
+    const data = await redis.get(key);
+    const payload = typeof data === 'string' ? JSON.parse(data) : data;
+    if (payload && payload.uid === uid) return payload;
   }
+  return undefined;
+}
 
-  async findByUid(uid) {
-    for (const [, { payload }] of store) {
-      if (payload.uid === uid) return payload;
-    }
-    return undefined;
+async findByUserCode(userCode) {
+  const keys = await redis.keys(`oidc:DeviceCode:*`);
+  for (const key of keys) {
+    const data = await redis.get(key);
+    const payload = typeof data === 'string' ? JSON.parse(data) : data;
+    if (payload && payload.userCode === userCode) return payload;
   }
+  return undefined;
+}
 
   async consume(id) {
     const entry = store.get(this.key(id));
