@@ -424,7 +424,7 @@ app.get('/interaction/:uid', async (req, res, next) => {
       return oidc.interactionFinished(
         req, res,
         { consent: { grantId } },
-        { mergeWithLastSubmission: false },
+        { mergeWithLastSubmission: true },
       );
     }
 
