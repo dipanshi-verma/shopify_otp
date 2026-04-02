@@ -175,7 +175,7 @@ class RedisAdapter {
 // ─── Config ───────────────────────────────────────────────────────────────────
 // const ISSUER      = `https://${process.env.NGROK_HOST}`;
 const ISSUER = process.env.ISSUER;
-const SHOP_ID = process.env.SHOP_ID;
+const SHOP_ID     = process.env.SHOP_ID;
 const SHOP_DOMAIN = process.env.SHOP_DOMAIN;
 
 if (!SHOP_ID || !SHOP_DOMAIN) {
@@ -187,7 +187,7 @@ const SHOPIFY_STORE_URL = `https://${SHOP_DOMAIN}.myshopify.com`;
 
 // ─── Demo config ──────────────────────────────────────────────────────────────
 const DEMO_MODE = process.env.DEMO_MODE === 'true';
-const DEMO_OTP = process.env.DEMO_OTP || '123456';
+const DEMO_OTP  = process.env.DEMO_OTP || '123456';
 
 // ─── Phone → Email lookup ─────────────────────────────────────────────────────
 //
@@ -198,59 +198,35 @@ const DEMO_OTP = process.env.DEMO_OTP || '123456';
 // Replace the function body with your actual customer-lookup API call.
 // It must return a string (email) on success, or null when not found.
 //
-
-// async function lookupEmailByPhone(phone) {
-//   // ── DEMO shortcut ──────────────────────────────────────────────────────────
-//   if (DEMO_MODE) {
-//     // In demo mode every phone maps to a predictable email so you can test
-//     // without a real customer database.
-//     return `${phone}@demo.example.com`;
-//   }
-
-//   // ── Real lookup ────────────────────────────────────────────────────────────
-//   // Example: call your own API that knows which email belongs to this phone.
-//   //
-//   // try {
-//   //   const resp = await fetch(`https://your-api.example.com/customers/by-phone/${phone}`, {
-//   //     headers: { Authorization: `Bearer ${process.env.INTERNAL_API_KEY}` },
-//   //   });
-//   //   if (!resp.ok) return null;
-//   //   const data = await resp.json();
-//   //   return data.email ?? null;
-//   // } catch (err) {
-//   //   console.error('[lookupEmailByPhone] Error:', err.message);
-//   //   return null;
-//   // }
-
-//   throw new Error(
-//     'lookupEmailByPhone: not implemented. ' +
-//     'Add your customer lookup logic or set DEMO_MODE=true.',
-//   );
-// }
-
 async function lookupEmailByPhone(phone) {
-  const formattedPhone = `+91${phone}`;
-  const response = await fetch(
-    `https://${process.env.SHOP_DOMAIN}.myshopify.com/admin/api/2024-01/graphql.json`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ADMIN_API_TOKEN,
-      },
-      body: JSON.stringify({
-        query: `query getCustomerByPhone($phone: String!) {
-          customers(first: 1, query: $phone) {
-            edges { node { email } }
-          }
-        }`,
-        variables: { phone: `phone:${formattedPhone}` },
-      }),
-    }
+  // ── DEMO shortcut ──────────────────────────────────────────────────────────
+  if (DEMO_MODE) {
+    // In demo mode every phone maps to a predictable email so you can test
+    // without a real customer database.
+    return `${phone}@demo.example.com`;
+  }
+
+  // ── Real lookup ────────────────────────────────────────────────────────────
+  // Example: call your own API that knows which email belongs to this phone.
+  //
+  // try {
+  //   const resp = await fetch(`https://your-api.example.com/customers/by-phone/${phone}`, {
+  //     headers: { Authorization: `Bearer ${process.env.INTERNAL_API_KEY}` },
+  //   });
+  //   if (!resp.ok) return null;
+  //   const data = await resp.json();
+  //   return data.email ?? null;
+  // } catch (err) {
+  //   console.error('[lookupEmailByPhone] Error:', err.message);
+  //   return null;
+  // }
+
+  throw new Error(
+    'lookupEmailByPhone: not implemented. ' +
+    'Add your customer lookup logic or set DEMO_MODE=true.',
   );
-  const data = await response.json();
-  return data?.data?.customers?.edges?.[0]?.node?.email || null;
 }
+
 // ─── OIDC Configuration ───────────────────────────────────────────────────────
 const oidcConfig = {
   adapter: RedisAdapter,
@@ -260,15 +236,15 @@ const oidcConfig = {
 
   claims: {
     openid: ['sub'],
-    email: ['email', 'email_verified'],
+    email:  ['email', 'email_verified'],
   },
 
   clients: [{
-    client_id: process.env.CLIENT_ID,
-    client_secret: process.env.CLIENT_SECRET,
-    token_endpoint_auth_method: 'client_secret_post',
-    grant_types: ['authorization_code', 'refresh_token'],
-    response_types: ['code'],
+    client_id:                    process.env.CLIENT_ID,
+    client_secret:                process.env.CLIENT_SECRET,
+    token_endpoint_auth_method:   'client_secret_post',
+    grant_types:                  ['authorization_code', 'refresh_token'],
+    response_types:               ['code'],
     redirect_uris: [
       `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
       `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
@@ -285,8 +261,8 @@ const oidcConfig = {
 
   features: {
     devInteractions: { enabled: false },
-    introspection: { enabled: true },
-    revocation: { enabled: true },
+    introspection:   { enabled: true },
+    revocation:      { enabled: true },
     rpInitiatedLogout: {
       enabled: true,
       logoutSource: async (ctx, form) => {
@@ -297,12 +273,12 @@ const oidcConfig = {
 
   ttl: {
     AuthorizationCode: 300,
-    AccessToken: 3600,
-    IdToken: 3600,
-    RefreshToken: 1209600,
-    Interaction: 3600,
-    Session: 1209600,
-    Grant: 1209600,
+    AccessToken:       3600,
+    IdToken:           3600,
+    RefreshToken:      1209600,
+    Interaction:       3600,
+    Session:           1209600,
+    Grant:             1209600,
     ClientCredentials: 600,
   },
 
@@ -310,12 +286,12 @@ const oidcConfig = {
     keys: [process.env.COOKIE_SECRET],
     names: {
       interaction: '_interaction',
-      resume: '_interaction_resume',
-      session: '_session',
-      state: '_state',
+      resume:      '_interaction_resume',
+      session:     '_session',
+      state:       '_state',
     },
     short: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
-    long: { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
+    long:  { sameSite: 'None', secure: true, httpOnly: true, path: '/', overwrite: true, signed: false },
   },
 
   // accountId is always a verified email address (set in interactionFinished)
@@ -328,10 +304,10 @@ const oidcConfig = {
       accountId: id,
       async claims(use, scope) {
         return {
-          sub: email,
+          sub:            email,
           email,
           email_verified: true,
-          updated_at: Math.floor(Date.now() / 1000),
+          updated_at:     Math.floor(Date.now() / 1000),
         };
       },
     };
@@ -359,7 +335,7 @@ app.use((req, res, next) => {
       const cookies = Array.isArray(value) ? value : [value];
       const fixed = cookies.map((c) => {
         if (!c.includes('SameSite')) c += '; SameSite=None';
-        if (!c.includes('Secure')) c += '; Secure';
+        if (!c.includes('Secure'))   c += '; Secure';
         return c;
       });
       return origSetHeader(name, fixed);
@@ -408,17 +384,11 @@ app.get('/interaction/:uid', async (req, res, next) => {
       if (!grant) {
         grant = new Grant({
           accountId: oidcSession?.accountId,
-          clientId: params.client_id,
+          clientId:  params.client_id,
         });
       }
 
-      const scopeToGrant = params.scope
-        ? (params.scope.includes("offline_access")
-          ? params.scope
-          : `${params.scope} offline_access`)
-        : "openid email offline_access";
-      grant.addOIDCScope(scopeToGrant);
-
+      if (params.scope) grant.addOIDCScope(params.scope);
       const grantId = await grant.save();
 
       return oidc.interactionFinished(
@@ -440,7 +410,7 @@ app.get('/interaction/:uid', async (req, res, next) => {
 app.post('/interaction/:uid/send-otp', express.urlencoded({ extended: false }), async (req, res, next) => {
   try {
     const { phone } = req.body;
-    const { uid } = req.params;
+    const { uid }   = req.params;
 
     if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
       return res.render('login', {
@@ -539,11 +509,11 @@ app.post('/interaction/:uid/verify-otp', express.urlencoded({ extended: false })
       req, res,
       {
         login: {
-          accountId: email,
-          remember: true,
+          accountId: email, 
+          remember:  true,
         },
       },
-      { mergeWithLastSubmission: false },
+      { mergeWithLastSubmission: true },
     );
   } catch (err) {
     console.error('❌ verify-otp ERROR:', err.message, err.stack);
