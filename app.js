@@ -352,7 +352,7 @@ app.use((req, res, next) => {
 });
 
 
-app.use('/token', express.urlencoded({ extended: false }));
+
 // ─── Interaction: GET ─────────────────────────────────────────────────────────
 //
 // Handles both the initial login prompt AND the consent step that oidc-provider
