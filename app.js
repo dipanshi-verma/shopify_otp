@@ -543,7 +543,7 @@ app.post('/interaction/:uid/verify-otp', express.urlencoded({ extended: false })
           remember: true,
         },
       },
-      { mergeWithLastSubmission: true },
+      { mergeWithLastSubmission: false },
     );
   } catch (err) {
     console.error('❌ verify-otp ERROR:', err.message, err.stack);
