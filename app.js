@@ -128,7 +128,7 @@ app.post('/interaction/:uid/send-otp', async (req, res, next) => {
     }
 
     console.log(`OTP sent to ${mobile}`);
-    res.render('verify', { uid, phone, error: null, demoOtp: null  });
+    res.render('verify', { uid, phone, reqId: result.reqId || null, error: null, demoOtp: null  });
   } catch (err) {
     next(err);
   }

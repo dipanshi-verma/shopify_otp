@@ -119,7 +119,7 @@
 
     <form method="POST" action="/interaction/<%= uid %>/verify-otp">
       <input type="hidden" name="phone" value="<%= phone %>"/>
-      <input type="hidden" name="reqId" value="<%= reqId || '' %>"/>
+      <input type="hidden" name="reqId" value="<%= typeof reqId !== 'undefined' ? reqId || '' : '' %>"/>
       <label for="otp">One-time password</label>
       <input
         type="text"
