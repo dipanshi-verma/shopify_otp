@@ -214,7 +214,7 @@ const oidc = new Provider(ISSUER, {
   clients: [{
     client_id:                  process.env.CLIENT_ID,
     client_secret:              process.env.CLIENT_SECRET,
-    token_endpoint_auth_method: 'client_secret_post',
+    token_endpoint_auth_method: 'none',
     grant_types:                ['authorization_code', 'refresh_token'],
     response_types:             ['code'],
     redirect_uris: [
@@ -226,7 +226,10 @@ const oidc = new Provider(ISSUER, {
 
   jwks: loadJWKS(),
 
-  pkce: { required: () => false },
+  pkce: { 
+  methods: ['S256'],
+  required: () => true   // ✅ yeh karo
+},
 
   ttl: {
     AuthorizationCode: 300,
