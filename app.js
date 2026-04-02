@@ -1,4 +1,6 @@
 const express = require('express');
+const Redis = require('ioredis');
+const redis = new Redis(process.env.REDIS_URL);
 const { Provider } = require('oidc-provider');
 const path = require('path');
 const fs = require('fs');
@@ -44,70 +46,132 @@ const grantable = new Set([
   'InitialAccessToken', 'RegistrationAccessToken', 'Grant',
 ]);
 
-class MemoryAdapter {
-  constructor(name) { this.name = name; }
+// class MemoryAdapter {
+//   constructor(name) { this.name = name; }
 
-  key(id) { return `${this.name}:${id}`; }
+//   key(id) { return `${this.name}:${id}`; }
+
+//   async upsert(id, payload, expiresIn) {
+//     const key = this.key(id);
+//     const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined;
+//     store.set(key, { payload, expiresAt });
+//     if (grantable.has(this.name) && payload.grantId) {
+//       const grantKey = `grant:${payload.grantId}`;
+//       const grant = store.get(grantKey) || { payload: { ids: [] } };
+//       if (!grant.payload.ids.includes(key)) grant.payload.ids.push(key);
+//       store.set(grantKey, grant);
+//     }
+//   }
+
+//   async find(id) {
+//     const entry = store.get(this.key(id));
+//     if (!entry) return undefined;
+//     if (entry.expiresAt && Date.now() > entry.expiresAt) {
+//       store.delete(this.key(id));
+//       return undefined;
+//     }
+//     return entry.payload;
+//   }
+
+//   async findByUid(uid) {
+//     for (const [, entry] of store) {
+//       if (entry?.payload?.uid === uid &&
+//           (!entry.expiresAt || Date.now() < entry.expiresAt)) {
+//         return entry.payload;
+//       }
+//     }
+//     return undefined;
+//   }
+
+//   async findByUserCode(userCode) {
+//     for (const [, entry] of store) {
+//       if (entry?.payload?.userCode === userCode &&
+//           (!entry.expiresAt || Date.now() < entry.expiresAt)) {
+//         return entry.payload;
+//       }
+//     }
+//     return undefined;
+//   }
+
+//   async consume(id) {
+//     const entry = store.get(this.key(id));
+//     if (entry) entry.payload.consumed = Math.floor(Date.now() / 1000);
+//   }
+
+//   async destroy(id) { store.delete(this.key(id)); }
+
+//   async revokeByGrantId(grantId) {
+//     const grantKey = `grant:${grantId}`;
+//     const grant = store.get(grantKey);
+//     if (grant?.payload?.ids) {
+//       grant.payload.ids.forEach((id) => store.delete(id));
+//       store.delete(grantKey);
+//     }
+//   }
+// }
+
+// REDIS ADAPTER — stores all data in Redis with TTLs, and maintains sets for grantId → token keys for efficient revocation.
+class RedisAdapter {
+  constructor(name) { this.name = name; }
+  key(id) { return `oidc:${this.name}:${id}`; }
 
   async upsert(id, payload, expiresIn) {
     const key = this.key(id);
-    const expiresAt = expiresIn ? Date.now() + expiresIn * 1000 : undefined;
-    store.set(key, { payload, expiresAt });
-    if (grantable.has(this.name) && payload.grantId) {
-      const grantKey = `grant:${payload.grantId}`;
-      const grant = store.get(grantKey) || { payload: { ids: [] } };
-      if (!grant.payload.ids.includes(key)) grant.payload.ids.push(key);
-      store.set(grantKey, grant);
+    await redis.set(key, JSON.stringify(payload), 'EX', expiresIn || 3600);
+    if (payload.grantId) {
+      const grantKey = `oidc:grant:${payload.grantId}`;
+      await redis.sadd(grantKey, key);
+      await redis.expire(grantKey, expiresIn || 3600);
     }
   }
 
   async find(id) {
-    const entry = store.get(this.key(id));
-    if (!entry) return undefined;
-    if (entry.expiresAt && Date.now() > entry.expiresAt) {
-      store.delete(this.key(id));
-      return undefined;
-    }
-    return entry.payload;
+    const data = await redis.get(this.key(id));
+    return data ? JSON.parse(data) : undefined;
   }
 
   async findByUid(uid) {
-    for (const [, entry] of store) {
-      if (entry?.payload?.uid === uid &&
-          (!entry.expiresAt || Date.now() < entry.expiresAt)) {
-        return entry.payload;
+    const keys = await redis.keys(`oidc:${this.name}:*`);
+    for (const key of keys) {
+      const data = await redis.get(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed.uid === uid) return parsed;
       }
     }
     return undefined;
   }
 
   async findByUserCode(userCode) {
-    for (const [, entry] of store) {
-      if (entry?.payload?.userCode === userCode &&
-          (!entry.expiresAt || Date.now() < entry.expiresAt)) {
-        return entry.payload;
+    const keys = await redis.keys(`oidc:${this.name}:*`);
+    for (const key of keys) {
+      const data = await redis.get(key);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed.userCode === userCode) return parsed;
       }
     }
     return undefined;
   }
 
   async consume(id) {
-    const entry = store.get(this.key(id));
-    if (entry) entry.payload.consumed = Math.floor(Date.now() / 1000);
-  }
-
-  async destroy(id) { store.delete(this.key(id)); }
-
-  async revokeByGrantId(grantId) {
-    const grantKey = `grant:${grantId}`;
-    const grant = store.get(grantKey);
-    if (grant?.payload?.ids) {
-      grant.payload.ids.forEach((id) => store.delete(id));
-      store.delete(grantKey);
+    const data = await redis.get(this.key(id));
+    if (data) {
+      const payload = JSON.parse(data);
+      payload.consumed = Math.floor(Date.now() / 1000);
+      await redis.set(this.key(id), JSON.stringify(payload), 'KEEPTTL');
     }
   }
-}
 
+  async destroy(id) { await redis.del(this.key(id)); }
+
+  async revokeByGrantId(grantId) {
+    const grantKey = `oidc:grant:${grantId}`;
+    const keys = await redis.smembers(grantKey);
+    await Promise.all(keys.map(k => redis.del(k)));
+    await redis.del(grantKey);
+  }
+}
 // ─── Config ───────────────────────────────────────────────────────────────────
 // const ISSUER      = `https://${process.env.NGROK_HOST}`;
 const ISSUER = process.env.ISSUER;
@@ -165,7 +229,7 @@ async function lookupEmailByPhone(phone) {
 
 // ─── OIDC Configuration ───────────────────────────────────────────────────────
 const oidcConfig = {
-  adapter: MemoryAdapter,
+  adapter: RedisAdapter,
   issuer: ISSUER,
 
   scopes: ['openid', 'email', 'offline_access', 'customer-account-api:full'],
