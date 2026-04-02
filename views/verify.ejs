@@ -107,7 +107,7 @@
       <p>Sent to <strong>+91 <%= phone %></strong></p>
     </div>
 
-    <% if (demoOtp) { %>
+   <% if (typeof demoOtp !== 'undefined' && demoOtp) { %>
       <div style="background:#fffbeb;border:1px solid #fcd34d;color:#92400e;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;text-align:center;">
         Demo mode &mdash; OTP is: <strong><%= demoOtp %></strong>
       </div>

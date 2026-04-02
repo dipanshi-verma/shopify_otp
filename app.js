@@ -128,7 +128,7 @@ app.post('/interaction/:uid/send-otp', async (req, res, next) => {
     }
 
     console.log(`OTP sent to ${mobile}`);
-    res.render('verify', { uid, phone, error: null });
+    res.render('verify', { uid, phone, error: null, demoOtp: null  });
   } catch (err) {
     next(err);
   }
@@ -162,6 +162,10 @@ app.post('/interaction/:uid/verify-otp', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
 // ─── MSG91 Helpers ────────────────────────────────────────────────────────────
