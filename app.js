@@ -28,7 +28,7 @@ function loadJWKS() {
 }
 
 // ─── OIDC Provider Config ─────────────────────────────────────────────────────
-const ISSUER = `https://${process.env.NGROK_HOST}`;
+const ISSUER = process.env.ISSUER;
 const SHOP_ID = process.env.SHOP_ID;
 const SHOP_DOMAIN = process.env.SHOP_DOMAIN;
 
