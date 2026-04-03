@@ -32,6 +32,9 @@ const ISSUER = process.env.ISSUER;
 const SHOP_ID = process.env.SHOP_ID;
 const SHOP_DOMAIN = process.env.SHOP_DOMAIN;
 
+const DEMO_MODE = process.env.DEMO_MODE === 'true';
+const DEMO_OTP = process.env.DEMO_OTP || '123456';
+
 // Trust proxy for HTTPS
 app.set('trust proxy', true);
 
@@ -39,22 +42,22 @@ const oidcConfig = {
   issuer: ISSUER,
   scopes: ['openid', 'email', 'customer-account-api:full'],
 
- clients: [
-  {
-    client_id: process.env.CLIENT_ID,
-    client_secret: process.env.CLIENT_SECRET,
-    token_endpoint_auth_method: 'client_secret_post',
-    grant_types: ['authorization_code'],
-    response_types: ['code'],
-    redirect_uris: [
-      `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
-      `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
-      `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
-      `https://${SHOP_DOMAIN}.account.myshopify.com/authentication/login/external/callback`,
-    ],
-    scope: 'openid email customer-account-api:full', 
-  },
-],
+  clients: [
+    {
+      client_id: process.env.CLIENT_ID,
+      client_secret: process.env.CLIENT_SECRET,
+      token_endpoint_auth_method: 'client_secret_post',
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      redirect_uris: [
+        `https://shopify.com/${SHOP_ID}/auth/oauth/callback`,
+        `https://shopify.com/authentication/${SHOP_ID}/login/external/callback`,
+        `https://${SHOP_DOMAIN}.myshopify.com/customer_identity/oauth/callback`,
+        `https://${SHOP_DOMAIN}.account.myshopify.com/authentication/login/external/callback`,
+      ],
+      scope: 'openid email customer-account-api:full',
+    },
+  ],
   jwks: loadJWKS(),
   pkce: { required: () => false },
   features: {
@@ -128,7 +131,7 @@ app.post('/interaction/:uid/send-otp', async (req, res, next) => {
     }
 
     console.log(`OTP sent to ${mobile}`);
-    res.render('verify', { uid, phone, reqId: result.reqId || null, error: null, demoOtp: null  });
+    res.render('verify', { uid, phone, reqId: result.reqId || null, error: null, demoOtp: null });
   } catch (err) {
     next(err);
   }
@@ -140,15 +143,31 @@ app.post('/interaction/:uid/verify-otp', async (req, res, next) => {
     const { phone, otp, reqId } = req.body;
     const uid = req.params.uid;
 
+    // DEMO MODE CHECK
+    if (DEMO_MODE) {
+      if (String(otp) !== String(DEMO_OTP)) {
+        return res.render('verify', {
+          uid, phone, reqId: reqId || null,
+          error: `Wrong OTP. Use ${DEMO_OTP}`,
+          demoOtp: DEMO_OTP,
+        });
+      }
+      const email = `${phone}@demo.example.com`;
+      return await oidc.interactionFinished(req, res,
+        { login: { accountId: email, remember: true } },
+        { mergeWithLastSubmission: false }
+      );
+    }
+
     if (!otp || otp.length < 4) {
-      return res.render('verify', { uid, phone,reqId: reqId || null, error: 'Please enter the OTP.', demoOtp: null });
+      return res.render('verify', { uid, phone, reqId: reqId || null, error: 'Please enter the OTP.', demoOtp: null });
     }
 
     const mobile = `91${phone}`;
     const result = await verifyOTP(mobile, otp);
 
     if (!result.success) {
-      return res.render('verify', { uid, phone, reqId: reqId || null, error: result.message, demoOtp: null});
+      return res.render('verify', { uid, phone, reqId: reqId || null, error: result.message, demoOtp: null });
     }
 
     // OTP verified — build synthetic email as the account ID
