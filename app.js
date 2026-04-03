@@ -122,7 +122,12 @@ app.post('/interaction/:uid/send-otp', async (req, res, next) => {
         error: 'Please enter a valid 10-digit Indian mobile number.',
       });
     }
-
+    if (DEMO_MODE) {
+      return res.render('verify', {
+        uid, phone, reqId: null,
+        error: null, demoOtp: DEMO_OTP
+      });
+    }
     const mobile = `91${phone}`;
     const result = await sendOTP(mobile);
 
