@@ -129,7 +129,7 @@
         name="otp"
         class="otp-input"
         placeholder="••••••"
-        value="<%= demoOtp || '' %>"
+        value="<%= typeof demoOtp !== 'undefined' ? demoOtp || '' : '' %>"
         maxlength="6"
         required
         autofocus

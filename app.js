@@ -137,18 +137,18 @@ app.post('/interaction/:uid/send-otp', async (req, res, next) => {
 // Step 2: Verify OTP and complete login
 app.post('/interaction/:uid/verify-otp', async (req, res, next) => {
   try {
-    const { phone, otp } = req.body;
+    const { phone, otp, reqId } = req.body;
     const uid = req.params.uid;
 
     if (!otp || otp.length < 4) {
-      return res.render('verify', { uid, phone, error: 'Please enter the OTP.' });
+      return res.render('verify', { uid, phone,reqId: reqId || null, error: 'Please enter the OTP.', demoOtp: null });
     }
 
     const mobile = `91${phone}`;
     const result = await verifyOTP(mobile, otp);
 
     if (!result.success) {
-      return res.render('verify', { uid, phone, error: result.message });
+      return res.render('verify', { uid, phone, reqId: reqId || null, error: result.message, demoOtp: null});
     }
 
     // OTP verified — build synthetic email as the account ID
